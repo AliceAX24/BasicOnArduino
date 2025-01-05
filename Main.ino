@@ -1,6 +1,8 @@
 #include <SD.h>
 #include <math.h>
-#include <stdlib.h> // Included for random() function
+#include <stdlib.h>
+#include <MatrixMath.h>
+
 
 // Pino CS para o módulo SD
 const int chipSelect = 10;
@@ -27,9 +29,54 @@ struct GridVariable {
   char grid[MAX_GRID_SIZE][MAX_GRID_SIZE];
 };
 
+struct Grid {
+  int width;
+  int height;
+  char grid[MAX_GRID_SIZE][MAX_GRID_SIZE];
+};
+
+Grid tempGrid; // Grid temporário para o comando SOR
+
 // Array para armazenar variáveis de grid
 GridVariable gridVariables[10];
 int gridVarCount = 0;
+
+// Estrutura para o hashmap (chave-valor)
+struct HashMapEntry {
+  String key;
+  Grid value;
+};
+
+// Tamanho máximo do hashmap
+const int HASHMAP_SIZE = 10;
+
+// Array para armazenar as entradas do hashmap
+HashMapEntry hashMap[HASHMAP_SIZE];
+int hashMapCount = 0;
+
+// Função para adicionar uma entrada ao hashmap
+void addToHashMap(String key, Grid value) {
+  if (hashMapCount < HASHMAP_SIZE) {
+    hashMap[hashMapCount].key = key;
+    hashMap[hashMapCount].value = value;
+    hashMapCount++;
+    Serial.print(F("Added to hashmap: "));
+    Serial.println(key);
+  } else {
+    Serial.println(F("Hashmap is full!"));
+  }
+}
+
+// Função para buscar uma entrada no hashmap
+Grid* getFromHashMap(String key) {
+  for (int i = 0; i < hashMapCount; i++) {
+    if (hashMap[i].key == key) {
+      return &hashMap[i].value;
+    }
+  }
+  Serial.println(F("Key not found in hashmap!"));
+  return nullptr;
+}
 
 struct AmalgVariable {
   String name;
@@ -83,6 +130,87 @@ void handleCd(String input) {
 void handlePwd() {
   Serial.print(F("Current directory: "));
   Serial.println(currentDir);
+}
+
+// Função para rotacionar um grid em 90 graus
+void rotateSingleGrid(char grid[MAX_GRID_SIZE][MAX_GRID_SIZE], int &width, int &height) {
+  char rotatedGrid[MAX_GRID_SIZE][MAX_GRID_SIZE];
+
+  // Rotaciona o grid por coluna
+  for (int i = 0; i < height; i++) {
+    for (int j = 0; j < width; j++) {
+      // A última coluna do grid original se torna a primeira linha do grid rotacionado
+      rotatedGrid[j][height - 1 - i] = grid[i][width - 1 - j];
+    }
+  }
+
+  // Atualiza as dimensões do grid
+  int temp = width;
+  width = height;
+  height = temp;
+
+  // Copia o grid rotacionado de volta para a matriz original
+  for (int i = 0; i < height; i++) {
+    for (int j = 0; j < width; j++) {
+      grid[i][j] = rotatedGrid[i][j];
+    }
+  }
+}
+
+// Função para rotacionar todo o AMALG
+void handleRotateVar(String input) {
+  input = input.substring(7); // Remove "ROTATE "
+  input.trim();
+
+  if (input.length() == 0) {
+    Serial.println(F("Error: Missing AMALG variable name. Use: ROTATE <name>"));
+    return;
+  }
+
+  String varName = input;
+
+  // Procura a variável AMALG
+  for (int i = 0; i < amalgVarCount; i++) {
+    if (amalgVariables[i]->name == varName) {
+      AmalgVariable* current = amalgVariables[i];
+
+      // Rotaciona cada grid no AMALG
+      while (current != nullptr) {
+        if (current->type.equalsIgnoreCase("GRID") || current->type.equalsIgnoreCase("VOID")) {
+          rotateSingleGrid(current->grid, current->width, current->height);
+        }
+        current = current->next;
+      }
+
+      Serial.print(F("AMALG variable "));
+      Serial.print(varName);
+      Serial.println(F(" rotated 90 degrees."));
+
+      // Exibe o AMALG após a rotação
+      current = amalgVariables[i];
+      while (current != nullptr) {
+        if (current->type.equalsIgnoreCase("ENTER")) {
+          Serial.println(); // Apenas uma nova linha para ENTER
+        } else {
+          for (int i = 0; i < current->height; i++) {
+            for (int j = 0; j < current->width; j++) {
+              Serial.print('[');
+              Serial.print(current->grid[i][j]);
+              Serial.print(']');
+            }
+            if (i < current->height - 1) {
+              Serial.println(); // Nova linha apenas entre as linhas do grid
+            }
+          }
+        }
+        current = current->next;
+      }
+
+      return;
+    }
+  }
+
+  Serial.println(F("AMALG variable not found."));
 }
 
 // Função para lidar com o comando AMALG
@@ -889,6 +1017,123 @@ void handleSvarg(String input) {
   Serial.println(F("Grid variable not found."));
 }
 
+// Função para lidar com o comando SOR
+void handleSor(String input) {
+  input = input.substring(4); // Remove "SOR "
+  input.trim(); // Remove espaços em branco
+
+  // Inicializa o grid temporário com espaços em branco
+  tempGrid.width = MAX_GRID_SIZE; // Define a largura máxima
+  tempGrid.height = MAX_GRID_SIZE; // Define a altura máxima
+  for (int i = 0; i < MAX_GRID_SIZE; i++) {
+    for (int j = 0; j < MAX_GRID_SIZE; j++) {
+      tempGrid.grid[i][j] = ' ';
+    }
+  }
+
+  // Extrai as coordenadas iniciais
+  int spacePos1 = input.indexOf(' ');
+  int spacePos2 = input.indexOf(' ', spacePos1 + 1);
+  int parenPos = input.indexOf('(');
+
+  if (spacePos1 == -1 || spacePos2 == -1 || parenPos == -1) {
+    Serial.println(F("Invalid syntax for SOR. Use: SOR <row> <col> (1 1 = \"A\"; 1 2 = \"B\"; ...)"));
+    return;
+  }
+
+  String rowStr = input.substring(0, spacePos1);
+  String colStr = input.substring(spacePos1 + 1, spacePos2);
+  String assignments = input.substring(parenPos + 1, input.length() - 1);
+
+  int startRow = rowStr.toInt() - 1; // Subtrai 1 para indexação baseada em 0
+  int startCol = colStr.toInt() - 1; // Subtrai 1 para indexação baseada em 0
+  int numColumns = colStr.toInt();   // Número de colunas especificado no comando
+
+  // Divide as atribuições em partes separadas por ';'
+  String parts[10]; // Armazena até 10 atribuições
+  int partCount = 0;
+  int startIndex = 0;
+
+  for (int i = 0; i < assignments.length(); i++) {
+    if (assignments.charAt(i) == ';') {
+      parts[partCount] = assignments.substring(startIndex, i);
+      parts[partCount].trim();
+      partCount++;
+      startIndex = i + 1;
+    }
+  }
+
+  // Adiciona a última parte (se houver)
+  if (startIndex < assignments.length()) {
+    parts[partCount] = assignments.substring(startIndex);
+    parts[partCount].trim();
+    partCount++;
+  }
+
+  // Verifica se o número de colunas corresponde ao número de atribuições
+  if (numColumns < partCount) {
+    Serial.print(F("Err: "));
+  } else if (numColumns > partCount) {
+    Serial.print(F("Overflow: "));
+  }
+
+  // Processa cada atribuição
+  for (int i = 0; i < partCount; i++) {
+    String part = parts[i];
+    part.trim();
+
+    // Verifica o formato da atribuição: "linha coluna = valor"
+    int spacePos1 = part.indexOf(' ');
+    int equalsPos = part.indexOf('=');
+    int spacePos2 = part.indexOf(' ', spacePos1 + 1);
+
+    if (spacePos1 == -1 || equalsPos == -1 || spacePos2 == -1) {
+      Serial.println(F("Invalid syntax for SOR. Use: SOR <row> <col> (1 1 = \"A\"; 1 2 = \"B\"; ...)"));
+      return;
+    }
+
+    // Extrai linha, coluna e valor
+    String rowStr = part.substring(0, spacePos1);
+    String colStr = part.substring(spacePos1 + 1, equalsPos);
+    String valueStr = part.substring(equalsPos + 1);
+    rowStr.trim();
+    colStr.trim();
+    valueStr.trim();
+
+    // Converte para inteiros
+    int row = rowStr.toInt() - 1; // Subtrai 1 para indexação baseada em 0
+    int col = colStr.toInt() - 1; // Subtrai 1 para indexação baseada em 0
+
+    // Verifica se as coordenadas são válidas
+    if (startRow + row < 0 || startRow + row >= MAX_GRID_SIZE || startCol + col < 0 || startCol + col >= MAX_GRID_SIZE) {
+      Serial.println(F("Error: Invalid row or column."));
+      continue; // Ignora esta atribuição e continua com as próximas
+    }
+
+    // Atribui o valor ao grid temporário
+    if (valueStr.startsWith("\"") && valueStr.endsWith("\"")) {
+      // Remove as aspas e atribui o primeiro caractere
+      valueStr = valueStr.substring(1, valueStr.length() - 1);
+      tempGrid.grid[startRow + row][startCol + col] = valueStr.charAt(0);
+    } else {
+      // Atribui o valor diretamente (para números ou caracteres sem aspas)
+      tempGrid.grid[startRow + row][startCol + col] = valueStr.charAt(0);
+    }
+  }
+
+  // Exibe a linha preenchida
+  for (int j = 0; j < numColumns; j++) {
+    Serial.print('[');
+    if (j < partCount) {
+      Serial.print(tempGrid.grid[startRow][startCol + j]);
+    } else {
+      Serial.print(' '); // Preenche colunas extras com espaço em branco
+    }
+    Serial.print(']');
+  }
+  Serial.println();
+}
+
 // Função para lidar com o comando SQRT
 void handleSqrt(String input) {
   input = input.substring(5); // Remove "SQRT "
@@ -967,6 +1212,8 @@ void runProgram() {
       handleReturn();
     } else if (line.startsWith("AMALG")) {
       handleAmalg(line); // Adiciona suporte para o comando AMALG
+    } else if (line.startsWith("SOR")) { // Adicionado suporte para o comando SOR
+      handleSor(line);
     } else {
       Serial.println(F("Unknown command in program."));
     }
@@ -1094,6 +1341,7 @@ void handleHelp() {
   Serial.println(F("ROTATE                        - Rotate 90 degrees the last GRID or VOID."));
   Serial.println(F("SVARG <name>                  - Show the contents of a VAR  GRID, VARGRID or VARVOID."));
   Serial.println(F("AMALG <name> <type>           - Create a Amalgamate of VAR, GRID, VARGRID or VARVOID."));
+  Serial.println(F("SOR <args>                    - Create a GRID-Like with chars."));
   Serial.println(F("---------------------------------------------------"));
   Serial.println(F("End of Help, have a good day!"));
 }
@@ -1510,106 +1758,7 @@ void setup() {
   Serial.println(F("SD card initialized."));
 }
 
-// Função para rotacionar uma variável de grid ou AMALG
-void handleRotateVar(String input) {
-  input = input.substring(7); // Remove "ROTATE "
-  input.trim();
-
-  if (input.length() == 0) {
-    Serial.println(F("Error: Missing variable name. Use: ROTATE <name>"));
-    return;
-  }
-
-  String varName = input;
-
-  // Procura a variável de grid
-  for (int i = 0; i < gridVarCount; i++) {
-    if (gridVariables[i].name == varName) {
-      // Cria uma matriz temporária para armazenar o grid rotacionado
-      char rotatedGrid[MAX_GRID_SIZE][MAX_GRID_SIZE];
-
-      // Rotaciona o grid
-      for (int j = 0; j < gridVariables[i].height; j++) {
-        for (int k = 0; k < gridVariables[i].width; k++) {
-          rotatedGrid[k][gridVariables[i].height - 1 - j] = gridVariables[i].grid[j][k];
-        }
-      }
-
-      // Atualiza as dimensões do grid
-      int temp = gridVariables[i].width;
-      gridVariables[i].width = gridVariables[i].height;
-      gridVariables[i].height = temp;
-
-      // Copia o grid rotacionado de volta para a matriz original
-      for (int j = 0; j < gridVariables[i].height; j++) {
-        for (int k = 0; k < gridVariables[i].width; k++) {
-          gridVariables[i].grid[j][k] = rotatedGrid[j][k];
-        }
-      }
-
-      Serial.print(F("Grid variable "));
-      Serial.print(varName);
-      Serial.println(F(" rotated 90 degrees."));
-
-      // Exibe o grid rotacionado
-      for (int j = 0; j < gridVariables[i].height; j++) {
-        for (int k = 0; k < gridVariables[i].width; k++) {
-          Serial.print('[');
-          Serial.print(gridVariables[i].grid[j][k]);
-          Serial.print(']');
-        }
-        Serial.println();
-      }
-
-      return;
-    }
-  }
-
-  // Procura a variável AMALG
-  for (int i = 0; i < amalgVarCount; i++) {
-    if (amalgVariables[i]->name == varName) {  // Use -> instead of .
-      // Cria uma matriz temporária para armazenar o grid rotacionado
-      char rotatedGrid[MAX_GRID_SIZE][MAX_GRID_SIZE];
-
-      // Rotaciona o grid
-      for (int j = 0; j < amalgVariables[i]->height; j++) {  // Use -> instead of .
-        for (int k = 0; k < amalgVariables[i]->width; k++) {  // Use -> instead of .
-          rotatedGrid[k][amalgVariables[i]->height - 1 - j] = amalgVariables[i]->grid[j][k];  // Use -> instead of .
-        }
-      }
-
-      // Atualiza as dimensões do grid
-      int temp = amalgVariables[i]->width;  // Use -> instead of .
-      amalgVariables[i]->width = amalgVariables[i]->height;  // Use -> instead of .
-      amalgVariables[i]->height = temp;  // Use -> instead of .
-
-      // Copia o grid rotacionado de volta para a matriz original
-      for (int j = 0; j < amalgVariables[i]->height; j++) {  // Use -> instead of .
-        for (int k = 0; k < amalgVariables[i]->width; k++) {  // Use -> instead of .
-          amalgVariables[i]->grid[j][k] = rotatedGrid[j][k];  // Use -> instead of .
-        }
-      }
-
-      Serial.print(F("AMALG variable "));
-      Serial.print(varName);
-      Serial.println(F(" rotated 90 degrees."));
-
-      // Exibe o grid rotacionado
-      for (int j = 0; j < amalgVariables[i]->height; j++) {  // Use -> instead of .
-        for (int k = 0; k < amalgVariables[i]->width; k++) {  // Use -> instead of .
-          Serial.print('[');
-          Serial.print(amalgVariables[i]->grid[j][k]);  // Use -> instead of .
-          Serial.print(']');
-        }
-        Serial.println();
-      }
-
-      return;
-    }
-  }
-
-  Serial.println(F("Variable not found."));
-}
+// Function to rotate an AMALG variable
 
 
 // Função principal
@@ -1617,7 +1766,9 @@ void loop() {
   if (Serial.available() > 0) {
     String input = Serial.readStringUntil('\n');
     input.trim();
-    if (input.startsWith("AMALG")) {
+    if (input.startsWith("SOR")) {
+      handleSor(input); // Executa o comando SOR
+    } else if (input.startsWith("AMALG")) {
       handleAmalg(input); // Executa o comando AMALG
     } else if (input.startsWith("ROTATE ")) {
       handleRotateVar(input); // Rotaciona uma variável AMALG ou GRID
