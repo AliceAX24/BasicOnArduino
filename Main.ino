@@ -607,7 +607,6 @@ void handlePause(String input) {
   int pauseTime = input.toInt(); // Converte o tempo de pausa para inteiro
   if (pauseTime > 0) {
     delay(pauseTime); // Pausa a execução pelo tempo especificado
-    Serial.println(F("PAUSE executed."));
   } else {
     Serial.println(F("Invalid PAUSE time."));
   }
@@ -753,11 +752,6 @@ void handleAsk(String input) {
     return;
   }
 
-  // Solicita ao usuário o valor
-  Serial.print(F("Enter value for "));
-  Serial.print(input);
-  Serial.print(F(": "));
-
   // Aguarda a entrada do usuário
   while (!Serial.available()) {
     // Espera até que o usuário insira um valor
@@ -785,10 +779,6 @@ void handleAsk(String input) {
     strcpy(variables[varCount], input.c_str());
     values[varCount] = value;
     varCount++;
-    Serial.print(F("Variable "));
-    Serial.print(input);
-    Serial.print(F(" created with value: "));
-    Serial.println(value, 6); // Exibe com 6 casas decimais
   } else {
     Serial.println(F("Too many variables."));
   }
