@@ -6,51 +6,21 @@ const int chipSelect = 10;
 // Variável para armazenar o diretório atual
 String currentDir = "/";
 
-// Variable storage (simplified)
-char variables[10][10]; // 10 variables, each with 10-character name
-float values[10]; // Corresponding variable values
+// Armazenamento de variáveis (simplificado)
+char variables[10][10]; // 10 variáveis, cada uma com nome de até 10 caracteres
+float values[10]; // Valores correspondentes às variáveis
 int varCount = 0;
 
-// Program lines storage (simplified)
+// Armazenamento de linhas do programa (simplificado)
 struct ProgramLine {
   int lineNumber;
   String command;
 };
-ProgramLine program[20]; // 20 lines of program
+ProgramLine program[20]; // 20 linhas de programa
 int lineCount = 0;
 
-// Current line pointer for program execution
+// Ponteiro para a linha atual durante a execução do programa
 int currentLine = 0;
-
-// Função para listar arquivos e diretórios no diretório atual
-void handleDir() {
-  File dir = SD.open(currentDir);
-  if (!dir) {
-    Serial.println(F("Failed to open directory."));
-    return;
-  }
-
-  Serial.println(F("Directory listing:"));
-  while (true) {
-    File entry = dir.openNextFile();
-    if (!entry) {
-      break; // Não há mais arquivos/diretórios
-    }
-
-    // Exibe o nome do arquivo/diretório
-    Serial.print(entry.name());
-    if (entry.isDirectory()) {
-      Serial.println(F("/")); // Indica que é um diretório
-    } else {
-      // Exibe o tamanho do arquivo
-      Serial.print(F(" - "));
-      Serial.print(entry.size());
-      Serial.println(F(" bytes"));
-    }
-    entry.close();
-  }
-  dir.close();
-}
 
 // Função para mudar de diretório
 void handleCd(String input) {
@@ -83,12 +53,42 @@ void handlePwd() {
   Serial.println(currentDir);
 }
 
-// Function to replace variables with their values (ignoring strings within quotes)
-void replaceVariables(String &expr) {
-  int startQuote = expr.indexOf('"'); // Find the first quote
-  int endQuote = expr.lastIndexOf('"'); // Find the last quote
+// Função para listar arquivos e diretórios no diretório atual
+void handleDir() {
+  File dir = SD.open(currentDir);
+  if (!dir) {
+    Serial.println(F("Failed to open directory."));
+    return;
+  }
 
-  // If there are no quotes, replace variables in the entire expression
+  Serial.println(F("Directory listing:"));
+  while (true) {
+    File entry = dir.openNextFile();
+    if (!entry) {
+      break; // Não há mais arquivos/diretórios
+    }
+
+    // Exibe o nome do arquivo/diretório
+    Serial.print(entry.name());
+    if (entry.isDirectory()) {
+      Serial.println(F("/")); // Indica que é um diretório
+    } else {
+      // Exibe o tamanho do arquivo
+      Serial.print(F(" - "));
+      Serial.print(entry.size());
+      Serial.println(F(" bytes"));
+    }
+    entry.close();
+  }
+  dir.close();
+}
+
+// Função para substituir variáveis por seus valores (ignorando strings dentro de aspas)
+void replaceVariables(String &expr) {
+  int startQuote = expr.indexOf('"'); // Encontra a primeira aspas
+  int endQuote = expr.lastIndexOf('"'); // Encontra a última aspas
+
+  // Se não houver aspas, substitui variáveis em toda a expressão
   if (startQuote == -1 || endQuote == -1) {
     for (int i = 0; i < varCount; i++) {
       String varName = variables[i];
@@ -96,12 +96,12 @@ void replaceVariables(String &expr) {
       expr.replace(varName, valueStr);
     }
   } else {
-    // Split the expression into parts: before quotes, within quotes, and after quotes
+    // Divide a expressão em partes: antes das aspas, dentro das aspas e depois das aspas
     String beforeQuotes = expr.substring(0, startQuote);
     String withinQuotes = expr.substring(startQuote, endQuote + 1);
     String afterQuotes = expr.substring(endQuote + 1);
 
-    // Replace variables only in the parts outside the quotes
+    // Substitui variáveis apenas nas partes fora das aspas
     for (int i = 0; i < varCount; i++) {
       String varName = variables[i];
       String valueStr = String(values[i]);
@@ -109,16 +109,14 @@ void replaceVariables(String &expr) {
       afterQuotes.replace(varName, valueStr);
     }
 
-    // Rebuild the expression
+    // Reconstrói a expressão
     expr = beforeQuotes + withinQuotes + afterQuotes;
   }
 }
 
-// Function to evaluate the expression
-// Function to evaluate the expression
+// Função para avaliar a expressão
 float evaluateExpression(String expr) {
-  // Remove todos os espaços da expressão
-  expr.replace(" ", "");
+  expr.replace(" ", ""); // Remove espaços
 
   // Avalia subexpressões dentro de parênteses
   while (expr.indexOf('(') != -1) {
@@ -140,10 +138,10 @@ float evaluateExpression(String expr) {
     expr.replace("(" + subExpr + ")", String(subResult));
   }
 
-  // Replace 'd' with '/' for division
+  // Substitui 'd' por '/' para divisão
   expr.replace('d', '/');
 
-  // First pass: evaluate * and /
+  // Primeira passagem: avalia * e /
   while (expr.indexOf('*') != -1 || expr.indexOf('/') != -1) {
     int mulPos = expr.indexOf('*');
     int divPos = expr.indexOf('/');
@@ -160,15 +158,18 @@ float evaluateExpression(String expr) {
       op = '/';
     }
     if (opPos == -1) break;
-    // Find the number before and after the operator
+
+    // Encontra os números antes e depois do operador
     int num1Start = opPos - 1;
     while (num1Start >= 0 && (isDigit(expr.charAt(num1Start)) || expr.charAt(num1Start) == '.')) num1Start--;
     num1Start++;
     int num1End = opPos;
     float num1 = expr.substring(num1Start, num1End).toFloat();
+
     int num2Start = opPos + 1;
     while (num2Start < expr.length() && (isDigit(expr.charAt(num2Start)) || expr.charAt(num2Start) == '.')) num2Start++;
     float num2 = expr.substring(opPos + 1, num2Start).toFloat();
+
     float result;
     if (op == '*') {
       result = num1 * num2;
@@ -179,11 +180,13 @@ float evaluateExpression(String expr) {
       }
       result = num1 / num2;
     }
-    // Replace the operation with the result
+
+    // Substitui a operação pelo resultado
     String replacement = String(result);
     expr.replace(expr.substring(num1Start, num2Start), replacement);
   }
-  // Second pass: evaluate + and -
+
+  // Segunda passagem: avalia + e -
   while (expr.indexOf('+') != -1 || expr.indexOf('-') != -1) {
     int addPos = expr.indexOf('+');
     int subPos = expr.indexOf('-');
@@ -200,40 +203,46 @@ float evaluateExpression(String expr) {
       op = '-';
     }
     if (opPos == -1) break;
-    // Find the number before and after the operator
+
+    // Encontra os números antes e depois do operador
     int num1Start = opPos - 1;
     while (num1Start >= 0 && (isDigit(expr.charAt(num1Start)) || expr.charAt(num1Start) == '.')) num1Start--;
     num1Start++;
     int num1End = opPos;
     float num1 = expr.substring(num1Start, num1End).toFloat();
+
     int num2Start = opPos + 1;
     while (num2Start < expr.length() && (isDigit(expr.charAt(num2Start)) || expr.charAt(num2Start) == '.')) num2Start++;
     float num2 = expr.substring(opPos + 1, num2Start).toFloat();
+
     float result;
     if (op == '+') {
       result = num1 + num2;
     } else if (op == '-') {
       result = num1 - num2;
     }
-    // Replace the operation with the result
+
+    // Substitui a operação pelo resultado
     String replacement = String(result);
     expr.replace(expr.substring(num1Start, num2Start), replacement);
   }
-  // The remaining expression should be a single number
+
+  // A expressão restante deve ser um único número
   float finalResult = expr.toFloat();
   return finalResult;
 }
 
+// Função para lidar com o comando PRINT
 void handlePrint(String input) {
   input = input.substring(6); // Remove "PRINT "
-  input.trim(); // Remove espaços em branco no início e no fim
+  input.trim(); // Remove espaços em branco
 
-  // Split the input into parts separated by commas
+  // Divide a entrada em partes separadas por vírgulas
   int commaPos = input.indexOf(',');
   while (commaPos != -1) {
     String part = input.substring(0, commaPos);
     part.trim();
-    replaceVariables(part); // Substitui variáveis por seus valores (exceto dentro de aspas)
+    replaceVariables(part); // Substitui variáveis por seus valores
 
     // Verifica se há operações matemáticas
     if (part.indexOf('+') != -1 || part.indexOf('-') != -1 || part.indexOf('*') != -1 || part.indexOf('d') != -1) {
@@ -249,9 +258,9 @@ void handlePrint(String input) {
     commaPos = input.indexOf(',');
   }
 
-  // Process the last part
+  // Processa a última parte
   input.trim();
-  replaceVariables(input); // Substitui variáveis por seus valores (exceto dentro de aspas)
+  replaceVariables(input); // Substitui variáveis por seus valores
 
   // Verifica se há operações matemáticas
   if (input.indexOf('+') != -1 || input.indexOf('-') != -1 || input.indexOf('*') != -1 || input.indexOf('d') != -1) {
@@ -263,6 +272,7 @@ void handlePrint(String input) {
   }
 }
 
+// Função para lidar com o comando LET
 void handleLet(String input) {
   int equalsPos = input.indexOf('=');
   if (equalsPos == -1) {
@@ -307,10 +317,11 @@ void handleLet(String input) {
   }
 }
 
+// Função para lidar com o comando GOTO
 void handleGoto(String input) {
   input = input.substring(5);
   int targetLine = input.toInt();
-  // Find the line number in program storage
+  // Procura o número da linha no armazenamento do programa
   for (int i = 0; i < lineCount; i++) {
     if (program[i].lineNumber == targetLine) {
       currentLine = i;
@@ -321,8 +332,9 @@ void handleGoto(String input) {
   Serial.println(F("Line not found."));
 }
 
+// Função para lidar com o comando IF
 void handleIf(String input) {
-  // Simplified IF handling: IF condition THEN GOTO line
+  // IF simplificado: IF condição THEN GOTO linha
   int thenPos = input.indexOf("THEN");
   if (thenPos == -1) {
     Serial.println(F("Invalid syntax for IF."));
@@ -330,7 +342,8 @@ void handleIf(String input) {
   }
   String condition = input.substring(2, thenPos);
   condition.trim();
-  // For simplicity, check if condition is "var > value"
+
+  // Verifica se a condição é "var > valor"
   int spacePos = condition.indexOf(' ');
   if (spacePos == -1) {
     Serial.println(F("Invalid condition."));
@@ -340,7 +353,8 @@ void handleIf(String input) {
   String operatorStr = condition.substring(spacePos + 1, condition.indexOf(' ', spacePos + 1));
   String valueStr = condition.substring(condition.indexOf(' ', spacePos + 1) + 1);
   float value = valueStr.toFloat();
-  // Find variable value
+
+  // Encontra o valor da variável
   float varValue = 0;
   for (int i = 0; i < varCount; i++) {
     if (strcmp(variables[i], varName.c_str()) == 0) {
@@ -348,7 +362,8 @@ void handleIf(String input) {
       break;
     }
   }
-  // Evaluate condition
+
+  // Avalia a condição
   bool result = false;
   if (operatorStr == ">") {
     result = varValue > value;
@@ -360,7 +375,8 @@ void handleIf(String input) {
     Serial.println(F("Unsupported operator."));
     return;
   }
-  // Execute GOTO if condition is true
+
+  // Executa GOTO se a condição for verdadeira
   if (result) {
     int gotoLine = input.substring(input.indexOf("THEN") + 4).toInt();
     for (int i = 0; i < lineCount; i++) {
@@ -374,10 +390,11 @@ void handleIf(String input) {
   }
 }
 
+// Função para executar o programa
 void runProgram() {
   currentLine = 0;
   while (currentLine < lineCount) {
-    // Execute the current line
+    // Executa a linha atual
     String line = program[currentLine].command;
     if (line.startsWith("PRINT")) {
       handlePrint(line);
@@ -401,12 +418,13 @@ void runProgram() {
     } else {
       Serial.println(F("Unknown command in program."));
     }
-    // Move to next line
+    // Avança para a próxima linha
     currentLine++;
   }
   Serial.println(F("Program end."));
 }
 
+// Função para listar o programa
 void listProgram() {
   for (int i = 0; i < lineCount; i++) {
     Serial.print(program[i].lineNumber);
@@ -415,13 +433,14 @@ void listProgram() {
   }
 }
 
+// Função para criar um novo programa
 void newProgram() {
   lineCount = 0;
   varCount = 0;
   Serial.println(F("New program started."));
 }
 
-// Function to add a line to the program
+// Função para adicionar uma linha ao programa
 void addProgramLine(String input) {
   int spacePos = input.indexOf(' ');
   if (spacePos == -1) {
@@ -430,10 +449,11 @@ void addProgramLine(String input) {
   }
   int lineNumber = input.substring(0, spacePos).toInt();
   String command = input.substring(spacePos + 1);
-  // Check if the line number already exists
+
+  // Verifica se o número da linha já existe
   for (int i = 0; i < lineCount; i++) {
     if (program[i].lineNumber == lineNumber) {
-      program[i].command = command; // Update existing line
+      program[i].command = command; // Atualiza a linha existente
       Serial.print(F("Line "));
       Serial.print(lineNumber);
       Serial.print(F(" updated: "));
@@ -441,7 +461,8 @@ void addProgramLine(String input) {
       return;
     }
   }
-  // Add new line
+
+  // Adiciona uma nova linha
   if (lineCount < 20) {
     program[lineCount].lineNumber = lineNumber;
     program[lineCount].command = command;
@@ -455,7 +476,7 @@ void addProgramLine(String input) {
   }
 }
 
-// Function to edit a line in the program
+// Função para editar uma linha do programa
 void handleEdit(String input) {
   int spacePos = input.indexOf(' ');
   if (spacePos == -1) {
@@ -464,10 +485,11 @@ void handleEdit(String input) {
   }
   int lineNumber = input.substring(5, spacePos).toInt();
   String newCommand = input.substring(spacePos + 1);
-  // Find the line number in program storage
+
+  // Procura o número da linha no armazenamento do programa
   for (int i = 0; i < lineCount; i++) {
     if (program[i].lineNumber == lineNumber) {
-      program[i].command = newCommand; // Update the line
+      program[i].command = newCommand; // Atualiza a linha
       Serial.print(F("Line "));
       Serial.print(lineNumber);
       Serial.print(F(" edited: "));
@@ -478,14 +500,14 @@ void handleEdit(String input) {
   Serial.println(F("Line not found."));
 }
 
-// Function to clear the screen
+// Função para limpar a tela
 void handleCls() {
   for (int i = 0; i < 50; i++) {
     Serial.println();
   }
 }
 
-// Function to display help
+// Função para exibir ajuda
 void handleHelp() {
   Serial.println(F("Available commands:"));
   Serial.println(F("HELP - Display this help message"));
@@ -511,12 +533,11 @@ void handleHelp() {
   Serial.println(F("SAVE <filename> - Save the program to the SD card"));
   Serial.println(F("DIR - List files and directories in the current directory"));
   Serial.println(F("CD <directory> - Change the current directory"));
-  Serial.println(F("DIR <directory> - List the Directory"));
   Serial.println(F("PWD - Print the current directory"));
   Serial.println(F("RM - Delete files on the SD card."));
 }
 
-// Function to handle PAUSE command
+// Função para lidar com o comando PAUSE
 void handlePause(String input) {
   input = input.substring(6); // Remove "PAUSE "
   input.trim(); // Remove espaços em branco
@@ -529,29 +550,29 @@ void handlePause(String input) {
   }
 }
 
-// Function to handle RENUM command
+// Função para lidar com o comando RENUM
 void handleRenum() {
   if (lineCount == 0) {
     Serial.println(F("No program lines to renumber."));
     return;
   }
-  
-  // Renumber lines starting from 10, incrementing by 10
+
+  // Renumera as linhas começando de 10, incrementando de 10 em 10
   int newLineNumber = 10;
   for (int i = 0; i < lineCount; i++) {
     program[i].lineNumber = newLineNumber;
     newLineNumber += 10;
   }
-  
+
   Serial.println(F("Program lines renumbered."));
 }
 
-// Function to handle DELETE command
+// Função para lidar com o comando DELETE
 void handleDelete(String input) {
   input = input.substring(7); // Remove "DELETE "
   input.trim(); // Remove espaços em branco
   int lineNumber = input.toInt(); // Converte o número da linha para inteiro
-  
+
   // Procura a linha no programa
   for (int i = 0; i < lineCount; i++) {
     if (program[i].lineNumber == lineNumber) {
@@ -566,11 +587,11 @@ void handleDelete(String input) {
       return;
     }
   }
-  
+
   Serial.println(F("Line not found."));
 }
 
-// Function to handle RANDOM command
+// Função para lidar com o comando RANDOM
 void handleRandom(String input) {
   input = input.substring(7); // Remove "RANDOM "
   input.trim();
@@ -628,14 +649,14 @@ void handleRandom(String input) {
   }
 }
 
-// Function to handle CLEAR command
+// Função para lidar com o comando CLEAR
 void handleClear() {
   varCount = 0; // Reseta o contador de variáveis
   lineCount = 0; // Reseta o contador de linhas do programa
   Serial.println(F("Variables and program cleared."));
 }
 
-// Function to handle LOAD command
+// Função para lidar com o comando LOAD
 void handleLoad(String input) {
   input = input.substring(5); // Remove "LOAD "
   input.trim(); // Remove espaços em branco
@@ -659,7 +680,7 @@ void handleLoad(String input) {
   Serial.println(F("Program loaded from SD card."));
 }
 
-// Função para apagar um arquivo do SD
+// Função para lidar com o comando RM
 void handleRm(String input) {
   input = input.substring(3); // Remove "RM "
   input.trim(); // Remove espaços em branco
@@ -670,8 +691,8 @@ void handleRm(String input) {
     return;
   }
 
-  // Prepend current directory to the filename
-  String fullPath = currentDir + "/" + input;
+  // Constrói o caminho completo do arquivo
+  String fullPath = currentDir + input;
 
   // Verifica se o arquivo existe
   if (!SD.exists(fullPath)) {
@@ -689,7 +710,7 @@ void handleRm(String input) {
   }
 }
 
-// Function to handle SAVE command
+// Função para lidar com o comando SAVE
 void handleSave(String input) {
   input = input.substring(5); // Remove "SAVE "
   input.trim(); // Remove espaços em branco
@@ -701,7 +722,7 @@ void handleSave(String input) {
     return;
   }
 
-  // Prepend current directory to the filename
+  // Adiciona o diretório atual ao nome do arquivo
   String fullPath = currentDir + "/" + filename;
 
   // Verifica se o arquivo já existe e o remove
@@ -733,7 +754,7 @@ void handleSave(String input) {
   Serial.println(F("Program saved to SD card."));
 }
 
-// Setup function
+// Função de configuração
 void setup() {
   Serial.begin(9600); // Inicia a comunicação serial
   Serial.println(F("Arduino BASIC Emulator Ready!"));
@@ -746,11 +767,12 @@ void setup() {
   Serial.println(F("SD card initialized."));
 }
 
-// Loop function
+// Função principal
 void loop() {
   if (Serial.available() > 0) {
     String input = Serial.readStringUntil('\n'); // Lê a entrada do usuário
-    input.trim(); // Remove espaços em branco no início e no fim
+    input.trim(); // Remove espaços em branco
+
     if (input.startsWith("HELP")) {
       handleHelp();
     } else if (input.startsWith("PRINT")) {
@@ -792,12 +814,12 @@ void loop() {
       handleSave(input);
     } else if (input.startsWith("CD")) {
       handleCd(input);
-    } else if (input.startsWith("DIR")) {
-      handleDir(); // Adiciona o comando DIR
     } else if (input.startsWith("PWD")) {
       handlePwd();
+    } else if (input.startsWith("DIR")) {
+      handleDir(); // Adiciona o comando DIR
     } else if (isdigit(input.charAt(0))) {
-      // If the input starts with a digit, assume it's a numbered line
+      // Se a entrada começa com um dígito, assume que é uma linha numerada
       addProgramLine(input);
     } else {
       Serial.println(F("Unknown command. Type HELP for a list of commands."));
