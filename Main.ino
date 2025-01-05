@@ -118,6 +118,30 @@ void replaceVariables(String &expr) {
 float evaluateExpression(String expr) {
   expr.replace(" ", ""); // Remove espaços
 
+  // Verifica se a expressão está vazia
+  if (expr.length() == 0) {
+    Serial.println(F("Error: Empty expression."));
+    return 0;
+  }
+
+  // Ignora o conteúdo dentro de aspas
+  int startQuote = expr.indexOf('"'); // Encontra a primeira aspas
+  int endQuote = expr.lastIndexOf('"'); // Encontra a última aspas
+
+  // Se houver aspas, divide a expressão em partes
+  if (startQuote != -1 && endQuote != -1) {
+    String beforeQuotes = expr.substring(0, startQuote); // Parte antes das aspas
+    String withinQuotes = expr.substring(startQuote, endQuote + 1); // Conteúdo dentro das aspas
+    String afterQuotes = expr.substring(endQuote + 1); // Parte depois das aspas
+
+    // Avalia apenas as partes fora das aspas
+    float beforeResult = evaluateExpression(beforeQuotes);
+    float afterResult = evaluateExpression(afterQuotes);
+
+    // Retorna a concatenação dos resultados (se houver)
+    return beforeResult + afterResult;
+  }
+
   // Avalia subexpressões dentro de parênteses
   while (expr.indexOf('(') != -1) {
     int openParen = expr.lastIndexOf('('); // Encontra o último '('
@@ -170,6 +194,12 @@ float evaluateExpression(String expr) {
     while (num2Start < expr.length() && (isDigit(expr.charAt(num2Start)) || expr.charAt(num2Start) == '.')) num2Start++;
     float num2 = expr.substring(opPos + 1, num2Start).toFloat();
 
+    // Verifica se os operandos são válidos
+    if (isnan(num1) || isnan(num2)) {
+      Serial.println(F("Error: Invalid operands."));
+      return 0;
+    }
+
     float result;
     if (op == '*') {
       result = num1 * num2;
@@ -215,6 +245,12 @@ float evaluateExpression(String expr) {
     while (num2Start < expr.length() && (isDigit(expr.charAt(num2Start)) || expr.charAt(num2Start) == '.')) num2Start++;
     float num2 = expr.substring(opPos + 1, num2Start).toFloat();
 
+    // Verifica se os operandos são válidos
+    if (isnan(num1) || isnan(num2)) {
+      Serial.println(F("Error: Invalid operands."));
+      return 0;
+    }
+
     float result;
     if (op == '+') {
       result = num1 + num2;
@@ -237,39 +273,64 @@ void handlePrint(String input) {
   input = input.substring(6); // Remove "PRINT "
   input.trim(); // Remove espaços em branco
 
-  // Divide a entrada em partes separadas por vírgulas
-  int commaPos = input.indexOf(',');
-  while (commaPos != -1) {
-    String part = input.substring(0, commaPos);
-    part.trim();
-    replaceVariables(part); // Substitui variáveis por seus valores
+  // Lista para armazenar as partes da entrada
+  String parts[10]; // Máximo de 10 partes (ajuste conforme necessário)
+  int partCount = 0;
 
-    // Verifica se há operações matemáticas
-    if (part.indexOf('+') != -1 || part.indexOf('-') != -1 || part.indexOf('*') != -1 || part.indexOf('d') != -1) {
-      float result = evaluateExpression(part); // Avalia a expressão
-      Serial.print(result, 2); // Exibe o resultado com 2 casas decimais
-    } else {
-      // Se não houver operadores, exibe o valor diretamente
-      Serial.print(part);
+  // Variáveis para rastrear se estamos dentro de uma string
+  bool insideQuotes = false;
+  int startIndex = 0;
+
+  // Itera sobre a entrada para dividir corretamente
+  for (int i = 0; i < input.length(); i++) {
+    char currentChar = input.charAt(i);
+
+    // Verifica se encontrou uma aspa
+    if (currentChar == '"') {
+      insideQuotes = !insideQuotes; // Alterna o estado (dentro ou fora das aspas)
     }
-    Serial.print(" "); // Adiciona um espaço entre os elementos
-    input = input.substring(commaPos + 1);
-    input.trim();
-    commaPos = input.indexOf(',');
+
+    // Verifica se encontrou uma vírgula fora de aspas
+    if (currentChar == ',' && !insideQuotes) {
+      // Adiciona a parte à lista
+      parts[partCount] = input.substring(startIndex, i);
+      parts[partCount].trim(); // Remove espaços em branco
+      partCount++;
+      startIndex = i + 1; // Atualiza o índice de início para a próxima parte
+    }
   }
 
-  // Processa a última parte
-  input.trim();
-  replaceVariables(input); // Substitui variáveis por seus valores
-
-  // Verifica se há operações matemáticas
-  if (input.indexOf('+') != -1 || input.indexOf('-') != -1 || input.indexOf('*') != -1 || input.indexOf('d') != -1) {
-    float result = evaluateExpression(input); // Avalia a expressão
-    Serial.println(result, 2); // Exibe o resultado com 2 casas decimais
-  } else {
-    // Se não houver operadores, exibe o valor diretamente
-    Serial.println(input);
+  // Adiciona a última parte (após a última vírgula)
+  if (startIndex < input.length()) {
+    parts[partCount] = input.substring(startIndex);
+    parts[partCount].trim(); // Remove espaços em branco
+    partCount++;
   }
+
+  // Processa cada parte
+  for (int i = 0; i < partCount; i++) {
+    String part = parts[i];
+
+    // Verifica se a parte está dentro de aspas
+    if (part.startsWith("\"") && part.endsWith("\"")) {
+      // Exibe o texto literal (removendo as aspas)
+      Serial.print(part.substring(1, part.length() - 1));
+    } else {
+      // Avalia a expressão fora das aspas
+      replaceVariables(part); // Substitui variáveis por seus valores
+      float result = evaluateExpression(part); // Avalia a expressão
+      if (!isnan(result)) { // Verifica se o resultado é válido
+        Serial.print(result, 2); // Exibe o resultado com 2 casas decimais
+      }
+    }
+
+    // Adiciona um espaço entre os elementos (exceto após o último)
+    if (i < partCount - 1) {
+      Serial.print(" ");
+    }
+  }
+
+  Serial.println(); // Nova linha após o comando PRINT
 }
 
 // Função para lidar com o comando LET
@@ -415,6 +476,8 @@ void runProgram() {
       handleRandom(line);
     } else if (line.startsWith("CLEAR")) {
       handleClear();
+    } else if (line.startsWith("ASK")) { // Adiciona o comando ASK
+      handleAsk(line);
     } else {
       Serial.println(F("Unknown command in program."));
     }
@@ -680,6 +743,57 @@ void handleLoad(String input) {
   Serial.println(F("Program loaded from SD card."));
 }
 
+void handleAsk(String input) {
+  input = input.substring(4); // Remove "ASK "
+  input.trim(); // Remove espaços em branco
+
+  // Verifica se o nome da variável é válido
+  if (input.length() == 0) {
+    Serial.println(F("Invalid syntax for ASK. Use: ASK <variable>"));
+    return;
+  }
+
+  // Solicita ao usuário o valor
+  Serial.print(F("Enter value for "));
+  Serial.print(input);
+  Serial.print(F(": "));
+
+  // Aguarda a entrada do usuário
+  while (!Serial.available()) {
+    // Espera até que o usuário insira um valor
+  }
+  String valueStr = Serial.readStringUntil('\n');
+  valueStr.trim(); // Remove espaços em branco
+
+  // Converte o valor para float
+  float value = valueStr.toFloat();
+
+  // Verifica se a variável já existe
+  for (int i = 0; i < varCount; i++) {
+    if (strcmp(variables[i], input.c_str()) == 0) {
+      values[i] = value; // Atualiza o valor da variável existente
+      Serial.print(F("Variable "));
+      Serial.print(input);
+      Serial.print(F(" updated to: "));
+      Serial.println(value, 6); // Exibe com 6 casas decimais
+      return;
+    }
+  }
+
+  // Se a variável não existe, cria uma nova
+  if (varCount < 10) {
+    strcpy(variables[varCount], input.c_str());
+    values[varCount] = value;
+    varCount++;
+    Serial.print(F("Variable "));
+    Serial.print(input);
+    Serial.print(F(" created with value: "));
+    Serial.println(value, 6); // Exibe com 6 casas decimais
+  } else {
+    Serial.println(F("Too many variables."));
+  }
+}
+
 // Função para lidar com o comando RM
 void handleRm(String input) {
   input = input.substring(3); // Remove "RM "
@@ -691,8 +805,8 @@ void handleRm(String input) {
     return;
   }
 
-  // Constrói o caminho completo do arquivo
-  String fullPath = currentDir + input;
+  // Adiciona a extensão .txt ao nome do arquivo
+  String fullPath = currentDir + input + ".txt";
 
   // Verifica se o arquivo existe
   if (!SD.exists(fullPath)) {
@@ -704,7 +818,7 @@ void handleRm(String input) {
   if (SD.remove(fullPath)) {
     Serial.print(F("File "));
     Serial.print(input);
-    Serial.println(F(" deleted."));
+    Serial.println(F(".txt deleted."));
   } else {
     Serial.println(F("Failed to delete file."));
   }
@@ -781,6 +895,8 @@ void loop() {
       handleLet(input);
     } else if (input.startsWith("GOTO")) {
       handleGoto(input);
+    } else if (input.startsWith("ASK")) {
+      handleAsk(input);
     } else if (input.startsWith("IF")) {
       handleIf(input);
     } else if (input.startsWith("RUN")) {
