@@ -13,6 +13,12 @@ char variables[10][10]; // 10 variáveis, cada uma com nome de até 10 caractere
 float values[10]; // Valores correspondentes às variáveis
 int varCount = 0;
 
+// Variáveis globais para armazenar o grid
+const int MAX_GRID_SIZE = 20; // Tamanho máximo do grid
+char grid[MAX_GRID_SIZE][MAX_GRID_SIZE]; // Matriz para armazenar o grid
+int gridWidth = 0; // Largura do grid
+int gridHeight = 0; // Altura do grid
+
 // Armazenamento de linhas do programa (simplificado)
 struct ProgramLine {
   int lineNumber;
@@ -515,8 +521,10 @@ void runProgram() {
   currentLine = 0;
   while (currentLine < lineCount) {
     String line = program[currentLine].command;
-      if (line.startsWith("VOID")) {
+    if (line.startsWith("VOID")) {
       handleVoid(line); // Passa a linha atual para handleVoid
+    } else if (line.equalsIgnoreCase("ROTATE")) {
+      handleRotate(); // Executa o comando ROTATE
     } else if (line.startsWith("GRID")) {
       handleGrid(line); // Passa a linha atual para handleGrid
     } else if (line.startsWith("PRINT")) {
@@ -846,38 +854,93 @@ void handleAsk(String input) {
   }
 }
 
+// Função para rotacionar o grid em 90 graus
+void rotateGrid() {
+  if (gridWidth == 0 || gridHeight == 0) {
+    Serial.println(F("Error: No grid to rotate."));
+    return;
+  }
+
+  // Cria uma matriz temporária para armazenar o grid rotacionado
+  char rotatedGrid[MAX_GRID_SIZE][MAX_GRID_SIZE];
+
+  // Rotaciona o grid
+  for (int i = 0; i < gridHeight; i++) {
+    for (int j = 0; j < gridWidth; j++) {
+      rotatedGrid[j][gridHeight - 1 - i] = grid[i][j];
+    }
+  }
+
+  // Atualiza as dimensões do grid
+  int temp = gridWidth;
+  gridWidth = gridHeight;
+  gridHeight = temp;
+
+  // Copia o grid rotacionado de volta para a matriz original
+  for (int i = 0; i < gridHeight; i++) {
+    for (int j = 0; j < gridWidth; j++) {
+      grid[i][j] = rotatedGrid[i][j];
+    }
+  }
+
+  Serial.println(F("Grid rotated 90 degrees."));
+}
+
+// Função para exibir o grid armazenado
+void displayGrid() {
+  if (gridWidth == 0 || gridHeight == 0) {
+    Serial.println(F("Error: No grid to display."));
+    return;
+  }
+
+  for (int i = 0; i < gridHeight; i++) {
+    for (int j = 0; j < gridWidth; j++) {
+      Serial.print('[');
+      Serial.print(grid[i][j]);
+      Serial.print(']');
+    }
+    Serial.println();
+  }
+}
+
+// Função para lidar com o comando ROTATE
+void handleRotate() {
+  rotateGrid();
+  displayGrid();
+}
+
 // Função para lidar com o comando GRID
 void handleGrid(String input) {
   input = input.substring(5); // Remove "GRID "
-  input.trim(); // Remove espaços em branco
+  input.trim();
 
-  // Divide a entrada em largura e altura
   int spacePos = input.indexOf(' ');
   if (spacePos == -1) {
-    Serial.println(F("Error: Invalid sintax. Correct: GRID <width> <height>."));
+    Serial.println(F("Error: Invalid syntax. Correct: GRID <width> <height>."));
     return;
   }
 
   String widthStr = input.substring(0, spacePos);
   String heightStr = input.substring(spacePos + 1);
 
-  int width = widthStr.toInt();
-  int height = heightStr.toInt();
+  gridWidth = widthStr.toInt();
+  gridHeight = heightStr.toInt();
 
-  // Verifica se os valores são válidos
-  if (width <= 0 || height <= 0) {
-    Serial.println(F("Error: Width and Height must be more then 0."));
+  if (gridWidth <= 0 || gridHeight <= 0 || gridWidth > MAX_GRID_SIZE || gridHeight > MAX_GRID_SIZE) {
+    Serial.println(F("Error: Invalid grid dimensions."));
     return;
   }
 
-  // Cria a malha quadriculada
-  for (int i = 0; i < height; i++) {
-    for (int j = 0; j < width; j++) {
-      Serial.print("[ ]");
+  // Preenche o grid com o padrão '#'
+  for (int i = 0; i < gridHeight; i++) {
+    for (int j = 0; j < gridWidth; j++) {
+      grid[i][j] = '#';
     }
-    Serial.println(); // Nova linha após cada linha da malha
   }
+
+  displayGrid();
 }
+
 
 // Função para lidar com o comando RM
 void handleRm(String input) {
@@ -908,37 +971,37 @@ void handleRm(String input) {
 // Função para lidar com o comando VOID
 void handleVoid(String input) {
   input = input.substring(5); // Remove "VOID "
-  input.trim(); // Remove espaços em branco
+  input.trim();
 
-  // Divide a entrada em largura e altura
   int spacePos = input.indexOf(' ');
   if (spacePos == -1) {
-    Serial.println(F("Erro: Sintaxe inválida. Use: VOID <largura> <altura>"));
+    Serial.println(F("Error: Invalid syntax. Correct: VOID <width> <height>"));
     return;
   }
 
   String widthStr = input.substring(0, spacePos);
   String heightStr = input.substring(spacePos + 1);
 
-  int width = widthStr.toInt();
-  int height = heightStr.toInt();
+  gridWidth = widthStr.toInt();
+  gridHeight = heightStr.toInt();
 
-  // Verifica se os valores são válidos
-  if (width <= 0 || height <= 0) {
-    Serial.println(F("Erro: Largura e altura devem ser maiores que 0."));
+  if (gridWidth <= 0 || gridHeight <= 0 || gridWidth > MAX_GRID_SIZE || gridHeight > MAX_GRID_SIZE) {
+    Serial.println(F("Error: Invalid grid dimensions."));
     return;
   }
 
-  // Cria a malha de espaços em branco
-  for (int i = 0; i < height; i++) {
-    for (int j = 0; j < width; j++) {
-      Serial.print(" "); // Imprime um espaço em branco
+  // Preenche o grid com espaços em branco
+  for (int i = 0; i < gridHeight; i++) {
+    for (int j = 0; j < gridWidth; j++) {
+      grid[i][j] = ' ';
     }
-    // Não avança para a próxima linha automaticamente
   }
-}
 
+  displayGrid();
+}
+// Modificação na função handleEnter para exibir o grid
 void handleEnter() {
+  displayGrid();
   Serial.println(); // Avança para a próxima linha
 }
 
@@ -1000,6 +1063,8 @@ void loop() {
     input.trim();
       if (input.equalsIgnoreCase("ENTER")) {
       handleEnter(); // Executa o comando ENTER
+    } else if (input.equalsIgnoreCase("ROTATE")) {
+      handleRotate(); // Executa o comando ROTATE
     } else if (input.startsWith("VOID")) {
       handleVoid(input); // Executa o comando VOID
     } else if (input.startsWith("HELP")) {
