@@ -164,11 +164,7 @@ void handleAmalg(String input) {
         }
       }
     } else if (type.equalsIgnoreCase("ENTER")) {
-      for (int i = 0; i < height; i++) {
-        for (int j = 0; j < width; j++) {
-          Serial.println();
-        }
-      }
+      Serial.println();
     } else {
       Serial.println(F("Error: Invalid type. Use GRID, VOID, or ENTER."));
       delete mainVar;
@@ -1506,7 +1502,7 @@ void handleSave(String input) {
 // Função de configuração
 void setup() {
   Serial.begin(9600);
-  Serial.println(F("------------Arduino BASIC v0.5a-----------"));
+  Serial.println(F("------------Arduino BASIC v0.6a-----------"));
 
   if (!SD.begin(10)) {
     Serial.println(F("SD card initialization failed!"));
