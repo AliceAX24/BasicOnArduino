@@ -631,7 +631,33 @@ void handleCls() {
 // Função para exibir ajuda
 void handleHelp() {
   Serial.println(F("Available commands:"));
-  // List of commands...
+  Serial.println(F("HELP - Display this help message"));
+  Serial.println(F("PRINT <expression> - Print the result of an expression"));
+  Serial.println(F("LET <var> = <expression> - Assign a value to a variable"));
+  Serial.println(F("GOTO <line> - Jump to a specific line number"));
+  Serial.println(F("IF <condition> THEN <line> - Conditional jump"));
+  Serial.println(F("RUN - Execute the program"));
+  Serial.println(F("LIST - List all program lines"));
+  Serial.println(F("NEW - Clear the program"));
+  Serial.println(F("CLS - Clear the screen"));
+  Serial.println(F("EDIT <line> <command> - Edit a specific line"));
+  Serial.println(F("END - End program execution"));
+  Serial.println(F("REM <comment> - Add a comment"));
+  Serial.println(F("PAUSE <time> - Pause execution for <time> milliseconds"));
+  Serial.println(F("RENUM - Renumber program lines"));
+  Serial.println(F("DELETE <line> - Delete a specific line"));
+  Serial.println(F("RANDOM <var> - Generate a random number and assign to a variable"));
+  Serial.println(F("CLEAR - Clear all variables and program lines"));
+  Serial.println(F("RANDOM <Variable>, <MIN>, <MAX> - Create a variable that is randomized"));
+  Serial.println(F("<line> <command> - Add a numbered line to the program"));
+  Serial.println(F("LOAD <filename> - Load a program from the SD card"));
+  Serial.println(F("SAVE <filename> - Save the program to the SD card"));
+  Serial.println(F("DIR - List files and directories in the current directory"));
+  Serial.println(F("CD <directory> - Change the current directory"));
+  Serial.println(F("PWD - Print the current directory"));
+  Serial.println(F("RM - Delete files on the SD card."));
+  Serial.println(F("LOG <value> - Calculate the base-10 logarithm of a value"));
+  Serial.println(F("SQR <value> - Calculate the square of a value"));
 }
 
 // Função para lidar com o comando PAUSE
