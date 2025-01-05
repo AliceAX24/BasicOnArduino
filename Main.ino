@@ -515,7 +515,11 @@ void runProgram() {
   currentLine = 0;
   while (currentLine < lineCount) {
     String line = program[currentLine].command;
-    if (line.startsWith("PRINT")) {
+      if (line.startsWith("VOID")) {
+      handleVoid(line); // Passa a linha atual para handleVoid
+    } else if (line.startsWith("GRID")) {
+      handleGrid(line); // Passa a linha atual para handleGrid
+    } else if (line.startsWith("PRINT")) {
       handlePrint(line);
     } else if (line.startsWith("LET")) {
       handleLet(line);
@@ -631,33 +635,40 @@ void handleCls() {
 // Função para exibir ajuda
 void handleHelp() {
   Serial.println(F("Available commands:"));
-  Serial.println(F("HELP - Display this help message"));
-  Serial.println(F("PRINT <expression> - Print the result of an expression"));
-  Serial.println(F("LET <var> = <expression> - Assign a value to a variable"));
-  Serial.println(F("GOTO <line> - Jump to a specific line number"));
-  Serial.println(F("IF <condition> THEN <line> - Conditional jump"));
-  Serial.println(F("RUN - Execute the program"));
-  Serial.println(F("LIST - List all program lines"));
-  Serial.println(F("NEW - Clear the program"));
-  Serial.println(F("CLS - Clear the screen"));
-  Serial.println(F("EDIT <line> <command> - Edit a specific line"));
-  Serial.println(F("END - End program execution"));
-  Serial.println(F("REM <comment> - Add a comment"));
-  Serial.println(F("PAUSE <time> - Pause execution for <time> milliseconds"));
-  Serial.println(F("RENUM - Renumber program lines"));
-  Serial.println(F("DELETE <line> - Delete a specific line"));
-  Serial.println(F("RANDOM <var> - Generate a random number and assign to a variable"));
-  Serial.println(F("CLEAR - Clear all variables and program lines"));
-  Serial.println(F("RANDOM <Variable>, <MIN>, <MAX> - Create a variable that is randomized"));
-  Serial.println(F("<line> <command> - Add a numbered line to the program"));
-  Serial.println(F("LOAD <filename> - Load a program from the SD card"));
-  Serial.println(F("SAVE <filename> - Save the program to the SD card"));
-  Serial.println(F("DIR - List files and directories in the current directory"));
-  Serial.println(F("CD <directory> - Change the current directory"));
-  Serial.println(F("PWD - Print the current directory"));
-  Serial.println(F("RM - Delete files on the SD card."));
-  Serial.println(F("LOG <value> - Calculate the base-10 logarithm of a value"));
-  Serial.println(F("SQR <value> - Calculate the square of a value"));
+  Serial.println(F("------------------HELP------------------"));
+  Serial.println(F("HELP                          - Display this help message."));
+  Serial.println(F("------------------BASIC------------------"));
+  Serial.println(F("PRINT <expression>            - Print the result of an expression."));
+  Serial.println(F("LET <var> = <expression>      - Assign a value to a variable."));
+  Serial.println(F("GOTO <line>                   - Jump to a specific line number."));
+  Serial.println(F("IF <condition> THEN <line>    - Conditional jump."));
+  Serial.println(F("RUN                           - Execute the program."));
+  Serial.println(F("LIST                          - List all program lines."));
+  Serial.println(F("NEW                           - Clear the program."));
+  Serial.println(F("END                           - End program execution."));
+  Serial.println(F("CLS                           - Clear the screen."));
+  Serial.println(F("PAUSE <time>                  - Pause execution for <time> milliseconds."));
+  Serial.println(F("DELETE <line>                 - Delete a specific line."));
+  Serial.println(F("CLEAR                         - Clear all variables and program lines."));
+  Serial.println(F("------------------EXPERT------------------"));
+  Serial.println(F("EDIT <line> <command>         - Edit a specific line."));
+  Serial.println(F("REM <comment>                 - Add a comment."));
+  Serial.println(F("RENUM                         - Renumber program lines."));
+  Serial.println(F("------------------FILE MANAGEMENT------------------"));
+  Serial.println(F("DIR                           - List files and directories in the current directory."));
+  Serial.println(F("CD <directory>                - Change the current directory"));
+  Serial.println(F("PWD                           - Print the current directory"));
+  Serial.println(F("RM                            - Delete files on the SD card."));
+  Serial.println(F("LOAD <filename>               - Load a program from the SD card."));
+  Serial.println(F("SAVE <filename>               - Save the program to the SD card."));
+  Serial.println(F("-----------------------MATH------------------------"));
+  Serial.println(F("LOG <value>                   - Calculate the base-10 logarithm of a value."));
+  Serial.println(F("SQR <value>                   - Calculate the square of a value."));
+  Serial.println(F("RANDOM <Variable> <MIN> <MAX> - Create a variable that is randomized."));
+  Serial.println(F("GRID <width> <height>         - Create a Grid."));
+  Serial.println(F("VOID <width> <height>         - Create a grid of spaces."));
+  Serial.println(F("---------------------------------------------------"));
+  Serial.println(F("End of Help, have a good day!"));
 }
 
 // Função para lidar com o comando PAUSE
@@ -835,6 +846,39 @@ void handleAsk(String input) {
   }
 }
 
+// Função para lidar com o comando GRID
+void handleGrid(String input) {
+  input = input.substring(5); // Remove "GRID "
+  input.trim(); // Remove espaços em branco
+
+  // Divide a entrada em largura e altura
+  int spacePos = input.indexOf(' ');
+  if (spacePos == -1) {
+    Serial.println(F("Error: Invalid sintax. Correct: GRID <width> <height>."));
+    return;
+  }
+
+  String widthStr = input.substring(0, spacePos);
+  String heightStr = input.substring(spacePos + 1);
+
+  int width = widthStr.toInt();
+  int height = heightStr.toInt();
+
+  // Verifica se os valores são válidos
+  if (width <= 0 || height <= 0) {
+    Serial.println(F("Error: Width and Height must be more then 0."));
+    return;
+  }
+
+  // Cria a malha quadriculada
+  for (int i = 0; i < height; i++) {
+    for (int j = 0; j < width; j++) {
+      Serial.print("[ ]");
+    }
+    Serial.println(); // Nova linha após cada linha da malha
+  }
+}
+
 // Função para lidar com o comando RM
 void handleRm(String input) {
   input = input.substring(3);
@@ -859,6 +903,43 @@ void handleRm(String input) {
   } else {
     Serial.println(F("Failed to delete file."));
   }
+}
+
+// Função para lidar com o comando VOID
+void handleVoid(String input) {
+  input = input.substring(5); // Remove "VOID "
+  input.trim(); // Remove espaços em branco
+
+  // Divide a entrada em largura e altura
+  int spacePos = input.indexOf(' ');
+  if (spacePos == -1) {
+    Serial.println(F("Erro: Sintaxe inválida. Use: VOID <largura> <altura>"));
+    return;
+  }
+
+  String widthStr = input.substring(0, spacePos);
+  String heightStr = input.substring(spacePos + 1);
+
+  int width = widthStr.toInt();
+  int height = heightStr.toInt();
+
+  // Verifica se os valores são válidos
+  if (width <= 0 || height <= 0) {
+    Serial.println(F("Erro: Largura e altura devem ser maiores que 0."));
+    return;
+  }
+
+  // Cria a malha de espaços em branco
+  for (int i = 0; i < height; i++) {
+    for (int j = 0; j < width; j++) {
+      Serial.print(" "); // Imprime um espaço em branco
+    }
+    // Não avança para a próxima linha automaticamente
+  }
+}
+
+void handleEnter() {
+  Serial.println(); // Avança para a próxima linha
 }
 
 // Função para lidar com o comando SAVE
@@ -903,7 +984,7 @@ void handleSave(String input) {
 // Função de configuração
 void setup() {
   Serial.begin(9600);
-  Serial.println(F("Arduino BASIC Emulator Ready!"));
+  Serial.println(F("------------Arduino BASIC v0.3a-----------"));
 
   if (!SD.begin(10)) {
     Serial.println(F("SD card initialization failed!"));
@@ -917,9 +998,14 @@ void loop() {
   if (Serial.available() > 0) {
     String input = Serial.readStringUntil('\n');
     input.trim();
-
-    if (input.startsWith("HELP")) {
+      if (input.equalsIgnoreCase("ENTER")) {
+      handleEnter(); // Executa o comando ENTER
+    } else if (input.startsWith("VOID")) {
+      handleVoid(input); // Executa o comando VOID
+    } else if (input.startsWith("HELP")) {
       handleHelp();
+    } else if (input.startsWith("GRID")) {
+      handleGrid(input); // Executa o comando GRID
     } else if (input.startsWith("PRINT")) {
       handlePrint(input);
     } else if (input.startsWith("LET")) {
@@ -971,6 +1057,8 @@ void loop() {
       handleSqrt(input);
     } else if (isdigit(input.charAt(0))) {
       addProgramLine(input);
+    } else if (input.equalsIgnoreCase("ENTER")) {
+      handleEnter(); // Executa o comando ENTER
     } else {
       Serial.println(F("Unknown command. Type HELP for a list of commands."));
     }
