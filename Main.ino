@@ -14,7 +14,7 @@ float values[10]; // Valores correspondentes às variáveis
 int varCount = 0;
 
 // Variáveis globais para armazenar o grid
-const int MAX_GRID_SIZE = 20; // Tamanho máximo do grid
+const int MAX_GRID_SIZE = 10; // Tamanho máximo do grid
 char grid[MAX_GRID_SIZE][MAX_GRID_SIZE]; // Matriz para armazenar o grid
 int gridWidth = 0; // Largura do grid
 int gridHeight = 0; // Altura do grid
@@ -30,6 +30,18 @@ struct GridVariable {
 // Array para armazenar variáveis de grid
 GridVariable gridVariables[10];
 int gridVarCount = 0;
+
+struct AmalgVariable {
+  String name;
+  String type; // Pode ser "GRID", "VOID" ou "ENTER"
+  int width;
+  int height;
+  char grid[MAX_GRID_SIZE][MAX_GRID_SIZE];
+  AmalgVariable* next; // Ponteiro para o próximo grid na sequência
+};
+
+AmalgVariable* amalgVariables[10]; // Array de ponteiros para variáveis AMALG
+int amalgVarCount = 0;
 
 // Armazenamento de linhas do programa (simplificado)
 struct ProgramLine {
@@ -71,6 +83,223 @@ void handleCd(String input) {
 void handlePwd() {
   Serial.print(F("Current directory: "));
   Serial.println(currentDir);
+}
+
+// Função para lidar com o comando AMALG
+void handleAmalg(String input) {
+  input = input.substring(6); // Remove "AMALG "
+  input.trim();
+
+  // Divide a entrada em partes separadas por ';'
+  String commands[10]; // Armazena até 10 comandos
+  int commandCount = 0;
+  int startIndex = 0;
+
+  for (int i = 0; i < input.length(); i++) {
+    if (input.charAt(i) == ';') {
+      commands[commandCount] = input.substring(startIndex, i);
+      commands[commandCount].trim();
+      commandCount++;
+      startIndex = i + 1;
+    }
+  }
+
+  // Adiciona o último comando (se houver)
+  if (startIndex < input.length()) {
+    commands[commandCount] = input.substring(startIndex);
+    commands[commandCount].trim();
+    commandCount++;
+  }
+
+  // Verifica se há comandos para processar
+  if (commandCount == 0) {
+    Serial.println(F("Error: No commands provided for AMALG."));
+    return;
+  }
+
+  // Processa o primeiro comando para criar a variável AMALG
+  String firstCommand = commands[0];
+  int spacePos1 = firstCommand.indexOf(' ');
+  int spacePos2 = firstCommand.indexOf(' ', spacePos1 + 1);
+  int spacePos3 = firstCommand.indexOf(' ', spacePos2 + 1);
+
+  if (spacePos1 == -1 || spacePos2 == -1 || spacePos3 == -1) {
+    Serial.println(F("Invalid syntax for AMALG. Use: AMALG <name> <type> <width> <height>"));
+    return;
+  }
+
+  String varName = firstCommand.substring(0, spacePos1);
+  String type = firstCommand.substring(spacePos1 + 1, spacePos2);
+  String widthStr = firstCommand.substring(spacePos2 + 1, spacePos3);
+  String heightStr = firstCommand.substring(spacePos3 + 1);
+
+  int width = widthStr.toInt();
+  int height = heightStr.toInt();
+
+  if (width <= 0 || height <= 0 || width > MAX_GRID_SIZE || height > MAX_GRID_SIZE) {
+    Serial.println(F("Error: Invalid grid dimensions."));
+    return;
+  }
+
+  if (amalgVarCount < 10) {
+    // Cria a variável AMALG principal
+    AmalgVariable* mainVar = new AmalgVariable();
+    mainVar->name = varName;
+    mainVar->type = type;
+    mainVar->width = width;
+    mainVar->height = height;
+    mainVar->next = nullptr;
+
+    // Preenche o grid com base no tipo
+    if (type.equalsIgnoreCase("GRID")) {
+      for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width; j++) {
+          mainVar->grid[i][j] = '#';
+        }
+      }
+    } else if (type.equalsIgnoreCase("VOID")) {
+      for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width; j++) {
+          mainVar->grid[i][j] = ' ';
+        }
+      }
+    } else if (type.equalsIgnoreCase("ENTER")) {
+      for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width; j++) {
+          Serial.println();
+        }
+      }
+    } else {
+      Serial.println(F("Error: Invalid type. Use GRID, VOID, or ENTER."));
+      delete mainVar;
+      return;
+    }
+
+    // Processa os comandos subsequentes
+    AmalgVariable* currentVar = mainVar;
+    for (int i = 1; i < commandCount; i++) {
+      String command = commands[i];
+      command.trim();
+
+      if (command.equalsIgnoreCase("ENTER")) {
+        // Cria um novo grid para o ENTER
+        AmalgVariable* newVar = new AmalgVariable();
+        newVar->type = "ENTER";
+        newVar->width = 1;
+        newVar->height = 1;
+        newVar->grid[0][0] = '\n';
+        newVar->next = nullptr;
+
+        currentVar->next = newVar;
+        currentVar = newVar;
+      } else if (command.startsWith("VOID")) {
+        // Processa o comando VOID
+        int spacePos1 = command.indexOf(' ');
+        int spacePos2 = command.indexOf(' ', spacePos1 + 1);
+
+        if (spacePos1 == -1 || spacePos2 == -1) {
+          Serial.println(F("Invalid syntax for VOID. Use: VOID <width> <height>"));
+          continue;
+        }
+
+        String widthStr = command.substring(spacePos1 + 1, spacePos2);
+        String heightStr = command.substring(spacePos2 + 1);
+
+        int width = widthStr.toInt();
+        int height = heightStr.toInt();
+
+        if (width <= 0 || height <= 0 || width > MAX_GRID_SIZE || height > MAX_GRID_SIZE) {
+          Serial.println(F("Error: Invalid grid dimensions for VOID."));
+          continue;
+        }
+
+        // Cria um novo grid para o VOID
+        AmalgVariable* newVar = new AmalgVariable();
+        newVar->type = "VOID";
+        newVar->width = width;
+        newVar->height = height;
+
+        for (int i = 0; i < height; i++) {
+          for (int j = 0; j < width; j++) {
+            newVar->grid[i][j] = ' ';
+          }
+        }
+
+        newVar->next = nullptr;
+        currentVar->next = newVar;
+        currentVar = newVar;
+      } else if (command.startsWith("GRID")) {
+        // Processa o comando GRID
+        int spacePos1 = command.indexOf(' ');
+        int spacePos2 = command.indexOf(' ', spacePos1 + 1);
+
+        if (spacePos1 == -1 || spacePos2 == -1) {
+          Serial.println(F("Invalid syntax for GRID. Use: GRID <width> <height>"));
+          continue;
+        }
+
+        String widthStr = command.substring(spacePos1 + 1, spacePos2);
+        String heightStr = command.substring(spacePos2 + 1);
+
+        int width = widthStr.toInt();
+        int height = heightStr.toInt();
+
+        if (width <= 0 || height <= 0 || width > MAX_GRID_SIZE || height > MAX_GRID_SIZE) {
+          Serial.println(F("Error: Invalid grid dimensions for GRID."));
+          continue;
+        }
+
+        // Cria um novo grid para o GRID
+        AmalgVariable* newVar = new AmalgVariable();
+        newVar->type = "GRID";
+        newVar->width = width;
+        newVar->height = height;
+
+        for (int i = 0; i < height; i++) {
+          for (int j = 0; j < width; j++) {
+            newVar->grid[i][j] = '#';
+          }
+        }
+
+        newVar->next = nullptr;
+        currentVar->next = newVar;
+        currentVar = newVar;
+      } else {
+        Serial.print(F("Unknown command in AMALG sequence: "));
+        Serial.println(command);
+      }
+    }
+
+    // Armazena a variável AMALG no array
+    amalgVariables[amalgVarCount] = mainVar;
+    amalgVarCount++;
+
+    Serial.print(F("AMALG variable "));
+    Serial.print(varName);
+    Serial.println(F(" created with multiple grids."));
+
+    // Exibe o AMALG
+    AmalgVariable* current = mainVar;
+    while (current != nullptr) {
+      if (current->type.equalsIgnoreCase("ENTER")) {
+        Serial.println(); // Apenas uma nova linha para ENTER
+      } else {
+        for (int i = 0; i < current->height; i++) {
+          for (int j = 0; j < current->width; j++) {
+            Serial.print('[');
+            Serial.print(current->grid[i][j]);
+            Serial.print(']');
+          }
+          if (i < current->height - 1) {
+            Serial.println(); // Nova linha apenas entre as linhas do grid
+          }
+        }
+      }
+      current = current->next;
+    }
+  } else {
+    Serial.println(F("Too many AMALG variables."));
+  }
 }
 
 // Função para lidar com o comando VARGRID
@@ -186,14 +415,16 @@ void handleVarEnter(String input) {
   // Procura a variável de grid
   for (int i = 0; i < gridVarCount; i++) {
     if (gridVariables[i].name == varName) {
-      // Exibe o grid
+      // Exibe o grid sem nova linha no final
       for (int j = 0; j < gridVariables[i].height; j++) {
         for (int k = 0; k < gridVariables[i].width; k++) {
           Serial.print('[');
           Serial.print(gridVariables[i].grid[j][k]);
           Serial.print(']');
         }
-        Serial.println();
+        if (j < gridVariables[i].height - 1) {
+          Serial.println(); // Nova linha apenas entre as linhas do grid
+        }
       }
       return;
     }
@@ -694,19 +925,19 @@ void runProgram() {
   while (currentLine < lineCount) {
     String line = program[currentLine].command;
     if (line.startsWith("VARGRID")) {
-      handleVarGrid(line); // Usa 'line' em vez de 'input'
+      handleVarGrid(line);
     } else if (line.startsWith("VARVOID")) {
-      handleVarVoid(line); // Usa 'line' em vez de 'input'
+      handleVarVoid(line);
     } else if (line.startsWith("VARENTER")) {
-      handleVarEnter(line); // Usa 'line' em vez de 'input'
+      handleVarEnter(line);
     } else if (line.startsWith("VOID")) {
-      handleVoid(line); // Passa a linha atual para handleVoid
+      handleVoid(line);
     } else if (line.equalsIgnoreCase("ROTATE")) {
-      handleRotate(); // Rotaciona o grid global
+      handleRotate();
     } else if (line.startsWith("ROTATE ")) {
-      handleRotateVar(line); // Corrected: Use 'line' instead of 'input'
+      handleRotateVar(line);
     } else if (line.startsWith("GRID")) {
-      handleGrid(line); // Passa a linha atual para handleGrid
+      handleGrid(line);
     } else if (line.startsWith("PRINT")) {
       handlePrint(line);
     } else if (line.startsWith("LET")) {
@@ -734,6 +965,12 @@ void runProgram() {
       handleSvarg(line);
     } else if (line.startsWith("SQRT")) {
       handleSqrt(line);
+    } else if (line.startsWith("ENTER")) {
+      handleEnter();
+    } else if (line.equalsIgnoreCase("RETURN")) {
+      handleReturn();
+    } else if (line.startsWith("AMALG")) {
+      handleAmalg(line); // Adiciona suporte para o comando AMALG
     } else {
       Serial.println(F("Unknown command in program."));
     }
@@ -857,9 +1094,11 @@ void handleHelp() {
   Serial.println(F("RANDOM <Variable> <MIN> <MAX> - Create a variable that is randomized."));
   Serial.println(F("GRID <width> <height>         - Create a Grid."));
   Serial.println(F("VOID <width> <height>         - Create a grid of spaces."));
-  Serial.println(F("ENTER                         - Go to the next line."));
+  Serial.println(F("RETURN                        - Go to the next line."));
   Serial.println(F("ROTATE                        - Rotate 90 degrees the last GRID or VOID."));
-  Serial.println(F("SVARG <name>                  - Show the contents of a VAR  GRID or VARVOID."));
+  Serial.println(F("SVARG <name>                  - Show the contents of a VAR  GRID, VARGRID or VARVOID."));
+  Serial.println(F("AMALG <name> <type>           - Create a Amalgamate of VAR, GRID, VARGRID or VARVOID."));
+  Serial.println(F("SHOWAMALG <name>              - Displays the Amalgamate."));
   Serial.println(F("---------------------------------------------------"));
   Serial.println(F("End of Help, have a good day!"));
 }
@@ -1123,9 +1362,23 @@ void handleGrid(String input) {
     }
   }
 
-  displayGrid();
+  // Exibe o grid sem nova linha no final
+  for (int i = 0; i < gridHeight; i++) {
+    for (int j = 0; j < gridWidth; j++) {
+      Serial.print('[');
+      Serial.print(grid[i][j]);
+      Serial.print(']');
+    }
+    if (i < gridHeight - 1) {
+      Serial.println(); // Nova linha apenas entre as linhas do grid
+    }
+  }
 }
 
+// Função para lidar com o comando RETURN
+void handleReturn() {
+  Serial.println(); // Simplesmente imprime uma nova linha
+}
 
 // Função para lidar com o comando RM
 void handleRm(String input) {
@@ -1182,13 +1435,34 @@ void handleVoid(String input) {
     }
   }
 
-  displayGrid();
+  // Exibe o grid sem nova linha no final
+  for (int i = 0; i < gridHeight; i++) {
+    for (int j = 0; j < gridWidth; j++) {
+      Serial.print('[');
+      Serial.print(grid[i][j]);
+      Serial.print(']');
+    }
+    if (i < gridHeight - 1) {
+      Serial.println(); // Nova linha apenas entre as linhas do grid
+    }
+  }
 }
 // Modificação na função handleEnter para exibir o grid
 void handleEnter() {
-  displayGrid();
-  Serial.println(); // Avança para a próxima linha
+  // Exibe o grid sem nova linha no final
+  for (int i = 0; i < gridHeight; i++) {
+    for (int j = 0; j < gridWidth; j++) {
+      Serial.print('[');
+      Serial.print(grid[i][j]);
+      Serial.print(']');
+    }
+    if (i < gridHeight - 1) {
+      Serial.println(); // Nova linha apenas entre as linhas do grid
+    }
+  }
 }
+
+
 
 // Função para lidar com o comando SAVE
 void handleSave(String input) {
@@ -1232,7 +1506,7 @@ void handleSave(String input) {
 // Função de configuração
 void setup() {
   Serial.begin(9600);
-  Serial.println(F("------------Arduino BASIC v0.3a-----------"));
+  Serial.println(F("------------Arduino BASIC v0.5a-----------"));
 
   if (!SD.begin(10)) {
     Serial.println(F("SD card initialization failed!"));
@@ -1241,13 +1515,13 @@ void setup() {
   Serial.println(F("SD card initialized."));
 }
 
-// Função para rotacionar uma variável de grid
+// Função para rotacionar uma variável de grid ou AMALG
 void handleRotateVar(String input) {
   input = input.substring(7); // Remove "ROTATE "
   input.trim();
 
   if (input.length() == 0) {
-    Serial.println(F("Error: Missing grid variable name. Use: ROTATE <name>"));
+    Serial.println(F("Error: Missing variable name. Use: ROTATE <name>"));
     return;
   }
 
@@ -1296,7 +1570,89 @@ void handleRotateVar(String input) {
     }
   }
 
-  Serial.println(F("Grid variable not found."));
+  // Procura a variável AMALG
+  for (int i = 0; i < amalgVarCount; i++) {
+    if (amalgVariables[i]->name == varName) {  // Use -> instead of .
+      // Cria uma matriz temporária para armazenar o grid rotacionado
+      char rotatedGrid[MAX_GRID_SIZE][MAX_GRID_SIZE];
+
+      // Rotaciona o grid
+      for (int j = 0; j < amalgVariables[i]->height; j++) {  // Use -> instead of .
+        for (int k = 0; k < amalgVariables[i]->width; k++) {  // Use -> instead of .
+          rotatedGrid[k][amalgVariables[i]->height - 1 - j] = amalgVariables[i]->grid[j][k];  // Use -> instead of .
+        }
+      }
+
+      // Atualiza as dimensões do grid
+      int temp = amalgVariables[i]->width;  // Use -> instead of .
+      amalgVariables[i]->width = amalgVariables[i]->height;  // Use -> instead of .
+      amalgVariables[i]->height = temp;  // Use -> instead of .
+
+      // Copia o grid rotacionado de volta para a matriz original
+      for (int j = 0; j < amalgVariables[i]->height; j++) {  // Use -> instead of .
+        for (int k = 0; k < amalgVariables[i]->width; k++) {  // Use -> instead of .
+          amalgVariables[i]->grid[j][k] = rotatedGrid[j][k];  // Use -> instead of .
+        }
+      }
+
+      Serial.print(F("AMALG variable "));
+      Serial.print(varName);
+      Serial.println(F(" rotated 90 degrees."));
+
+      // Exibe o grid rotacionado
+      for (int j = 0; j < amalgVariables[i]->height; j++) {  // Use -> instead of .
+        for (int k = 0; k < amalgVariables[i]->width; k++) {  // Use -> instead of .
+          Serial.print('[');
+          Serial.print(amalgVariables[i]->grid[j][k]);  // Use -> instead of .
+          Serial.print(']');
+        }
+        Serial.println();
+      }
+
+      return;
+    }
+  }
+
+  Serial.println(F("Variable not found."));
+}
+
+void handleShowAmalg(String input) {
+  input = input.substring(10); // Remove "SHOWAMALG "
+  input.trim();
+
+  if (input.length() == 0) {
+    Serial.println(F("Error: Missing AMALG variable name. Use: SHOWAMALG <name>"));
+    return;
+  }
+
+  String varName = input;
+
+  // Procura a variável AMALG
+  for (int i = 0; i < amalgVarCount; i++) {
+    if (amalgVariables[i]->name == varName) { // Usando -> para acessar membros
+      AmalgVariable* currentVar = amalgVariables[i];
+
+      // Exibe todos os grids na sequência
+      while (currentVar != nullptr) {
+        if (currentVar->type.equalsIgnoreCase("ENTER")) {
+          Serial.println(); // Exibe uma nova linha para o ENTER
+        } else {
+          for (int j = 0; j < currentVar->height; j++) {
+            for (int k = 0; k < currentVar->width; k++) {
+              Serial.print('[');
+              Serial.print(currentVar->grid[j][k]);
+              Serial.print(']');
+            }
+            Serial.println();
+          }
+        }
+        currentVar = currentVar->next;
+      }
+      return;
+    }
+  }
+
+  Serial.println(F("AMALG variable not found."));
 }
 
 // Função principal
@@ -1304,7 +1660,15 @@ void loop() {
   if (Serial.available() > 0) {
     String input = Serial.readStringUntil('\n');
     input.trim();
-      if (input.startsWith("VARGRID")) {
+    if (input.startsWith("AMALG")) {
+      handleAmalg(input); // Executa o comando AMALG
+    } else if (input.startsWith("SHOWAMALG")) {
+      handleShowAmalg(input); // Exibe o conteúdo de uma variável AMALG
+    } else if (input.startsWith("ROTATE ")) {
+      handleRotateVar(input); // Rotaciona uma variável AMALG ou GRID
+    } else if (input.equalsIgnoreCase("RETURN")) {
+      handleReturn();
+    } else if (input.startsWith("VARGRID")) {
       handleVarGrid(input);
     } else if (input.startsWith("SVARG")) {
       handleSvarg(input);
@@ -1313,17 +1677,15 @@ void loop() {
     } else if (input.startsWith("VARENTER")) {
       handleVarEnter(input);
     } else if (input.equalsIgnoreCase("ENTER")) {
-      handleEnter(); // Executa o comando ENTER
+      handleEnter();
     } else if (input.equalsIgnoreCase("ROTATE")) {
-      handleRotate(); // Rotaciona o grid global
-    } else if (input.startsWith("ROTATE ")) {
-      handleRotateVar(input);
-    }  else if (input.startsWith("VOID")) {
-      handleVoid(input); // Executa o comando VOID
+      handleRotate();
+    } else if (input.startsWith("VOID")) {
+      handleVoid(input);
     } else if (input.startsWith("HELP")) {
       handleHelp();
     } else if (input.startsWith("GRID")) {
-      handleGrid(input); // Executa o comando GRID
+      handleGrid(input);
     } else if (input.startsWith("PRINT")) {
       handlePrint(input);
     } else if (input.startsWith("LET")) {
@@ -1375,8 +1737,6 @@ void loop() {
       handleSqrt(input);
     } else if (isdigit(input.charAt(0))) {
       addProgramLine(input);
-    } else if (input.equalsIgnoreCase("ENTER")) {
-      handleEnter(); // Executa o comando ENTER
     } else {
       Serial.println(F("Unknown command. Type HELP for a list of commands."));
     }
