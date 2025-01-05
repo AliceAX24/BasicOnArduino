@@ -19,6 +19,18 @@ char grid[MAX_GRID_SIZE][MAX_GRID_SIZE]; // Matriz para armazenar o grid
 int gridWidth = 0; // Largura do grid
 int gridHeight = 0; // Altura do grid
 
+// Estrutura para armazenar grids
+struct GridVariable {
+  String name;
+  int width;
+  int height;
+  char grid[MAX_GRID_SIZE][MAX_GRID_SIZE];
+};
+
+// Array para armazenar variáveis de grid
+GridVariable gridVariables[10];
+int gridVarCount = 0;
+
 // Armazenamento de linhas do programa (simplificado)
 struct ProgramLine {
   int lineNumber;
@@ -59,6 +71,135 @@ void handleCd(String input) {
 void handlePwd() {
   Serial.print(F("Current directory: "));
   Serial.println(currentDir);
+}
+
+// Função para lidar com o comando VARGRID
+void handleVarGrid(String input) {
+  input = input.substring(8); // Remove "VARGRID "
+  input.trim();
+
+  int spacePos1 = input.indexOf(' ');
+  int spacePos2 = input.indexOf(' ', spacePos1 + 1);
+
+  if (spacePos1 == -1 || spacePos2 == -1) {
+    Serial.println(F("Invalid syntax for VARGRID. Use: VARGRID <name> <width> <height>"));
+    return;
+  }
+
+  String varName = input.substring(0, spacePos1);
+  String widthStr = input.substring(spacePos1 + 1, spacePos2);
+  String heightStr = input.substring(spacePos2 + 1);
+
+  int width = widthStr.toInt();
+  int height = heightStr.toInt();
+
+  if (width <= 0 || height <= 0 || width > MAX_GRID_SIZE || height > MAX_GRID_SIZE) {
+    Serial.println(F("Error: Invalid grid dimensions."));
+    return;
+  }
+
+  if (gridVarCount < 10) {
+    gridVariables[gridVarCount].name = varName;
+    gridVariables[gridVarCount].width = width;
+    gridVariables[gridVarCount].height = height;
+
+    // Preenche o grid com o padrão '#'
+    for (int i = 0; i < height; i++) {
+      for (int j = 0; j < width; j++) {
+        gridVariables[gridVarCount].grid[i][j] = '#';
+      }
+    }
+
+    gridVarCount++;
+    Serial.print(F("Grid variable "));
+    Serial.print(varName);
+    Serial.print(F(" created with dimensions "));
+    Serial.print(width);
+    Serial.print(F("x"));
+    Serial.println(height);
+  } else {
+    Serial.println(F("Too many grid variables."));
+  }
+}
+
+// Função para lidar com o comando VARVOID
+void handleVarVoid(String input) {
+  input = input.substring(8); // Remove "VARVOID "
+  input.trim();
+
+  int spacePos1 = input.indexOf(' ');
+  int spacePos2 = input.indexOf(' ', spacePos1 + 1);
+
+  if (spacePos1 == -1 || spacePos2 == -1) {
+    Serial.println(F("Invalid syntax for VARVOID. Use: VARVOID <name> <width> <height>"));
+    return;
+  }
+
+  String varName = input.substring(0, spacePos1);
+  String widthStr = input.substring(spacePos1 + 1, spacePos2);
+  String heightStr = input.substring(spacePos2 + 1);
+
+  int width = widthStr.toInt();
+  int height = heightStr.toInt();
+
+  if (width <= 0 || height <= 0 || width > MAX_GRID_SIZE || height > MAX_GRID_SIZE) {
+    Serial.println(F("Error: Invalid grid dimensions."));
+    return;
+  }
+
+  if (gridVarCount < 10) {
+    gridVariables[gridVarCount].name = varName;
+    gridVariables[gridVarCount].width = width;
+    gridVariables[gridVarCount].height = height;
+
+    // Preenche o grid com espaços em branco
+    for (int i = 0; i < height; i++) {
+      for (int j = 0; j < width; j++) {
+        gridVariables[gridVarCount].grid[i][j] = ' ';
+      }
+    }
+
+    gridVarCount++;
+    Serial.print(F("Void grid variable "));
+    Serial.print(varName);
+    Serial.print(F(" created with dimensions "));
+    Serial.print(width);
+    Serial.print(F("x"));
+    Serial.println(height);
+  } else {
+    Serial.println(F("Too many grid variables."));
+  }
+}
+
+// Função para lidar com o comando VARENTER
+void handleVarEnter(String input) {
+  input = input.substring(9); // Remove "VARENTER "
+  input.trim();
+
+  if (input.length() == 0) {
+    Serial.println(F("Invalid syntax for VARENTER. Use: VARENTER <name>"));
+    return;
+  }
+
+  String varName = input;
+
+  // Procura a variável de grid
+  for (int i = 0; i < gridVarCount; i++) {
+    if (gridVariables[i].name == varName) {
+      // Exibe o grid
+      for (int j = 0; j < gridVariables[i].height; j++) {
+        for (int k = 0; k < gridVariables[i].width; k++) {
+          Serial.print('[');
+          Serial.print(gridVariables[i].grid[j][k]);
+          Serial.print(']');
+        }
+        Serial.println();
+      }
+      return;
+    }
+  }
+
+  Serial.println(F("Grid variable not found."));
 }
 
 // Função para listar arquivos e diretórios no diretório atual
@@ -490,6 +631,37 @@ void handleIf(String input) {
   }
 }
 
+// Função para lidar com o comando SVARG
+void handleSvarg(String input) {
+  input = input.substring(6); // Remove "SVARG "
+  input.trim(); // Remove espaços em branco
+
+  if (input.length() == 0) {
+    Serial.println(F("Error: Missing grid variable name. Use: SVARG <name>"));
+    return;
+  }
+
+  String varName = input;
+
+  // Procura a variável de grid
+  for (int i = 0; i < gridVarCount; i++) {
+    if (gridVariables[i].name == varName) {
+      // Exibe o grid
+      for (int j = 0; j < gridVariables[i].height; j++) {
+        for (int k = 0; k < gridVariables[i].width; k++) {
+          Serial.print('[');
+          Serial.print(gridVariables[i].grid[j][k]);
+          Serial.print(']');
+        }
+        Serial.println();
+      }
+      return;
+    }
+  }
+
+  Serial.println(F("Grid variable not found."));
+}
+
 // Função para lidar com o comando SQRT
 void handleSqrt(String input) {
   input = input.substring(5); // Remove "SQRT "
@@ -521,10 +693,18 @@ void runProgram() {
   currentLine = 0;
   while (currentLine < lineCount) {
     String line = program[currentLine].command;
-    if (line.startsWith("VOID")) {
+    if (line.startsWith("VARGRID")) {
+      handleVarGrid(line); // Usa 'line' em vez de 'input'
+    } else if (line.startsWith("VARVOID")) {
+      handleVarVoid(line); // Usa 'line' em vez de 'input'
+    } else if (line.startsWith("VARENTER")) {
+      handleVarEnter(line); // Usa 'line' em vez de 'input'
+    } else if (line.startsWith("VOID")) {
       handleVoid(line); // Passa a linha atual para handleVoid
     } else if (line.equalsIgnoreCase("ROTATE")) {
-      handleRotate(); // Executa o comando ROTATE
+      handleRotate(); // Rotaciona o grid global
+    } else if (line.startsWith("ROTATE ")) {
+      handleRotateVar(line); // Corrected: Use 'line' instead of 'input'
     } else if (line.startsWith("GRID")) {
       handleGrid(line); // Passa a linha atual para handleGrid
     } else if (line.startsWith("PRINT")) {
@@ -550,6 +730,8 @@ void runProgram() {
       handleAsk(line);
     } else if (line.startsWith("LOG")) {
       handleLog(line);
+    } else if (line.startsWith("SVARG")) { 
+      handleSvarg(line);
     } else if (line.startsWith("SQRT")) {
       handleSqrt(line);
     } else {
@@ -675,6 +857,9 @@ void handleHelp() {
   Serial.println(F("RANDOM <Variable> <MIN> <MAX> - Create a variable that is randomized."));
   Serial.println(F("GRID <width> <height>         - Create a Grid."));
   Serial.println(F("VOID <width> <height>         - Create a grid of spaces."));
+  Serial.println(F("ENTER                         - Go to the next line."));
+  Serial.println(F("ROTATE                        - Rotate 90 degrees the last GRID or VOID."));
+  Serial.println(F("SVARG <name>                  - Show the contents of a VAR  GRID or VARVOID."));
   Serial.println(F("---------------------------------------------------"));
   Serial.println(F("End of Help, have a good day!"));
 }
@@ -1056,16 +1241,84 @@ void setup() {
   Serial.println(F("SD card initialized."));
 }
 
+// Função para rotacionar uma variável de grid
+void handleRotateVar(String input) {
+  input = input.substring(7); // Remove "ROTATE "
+  input.trim();
+
+  if (input.length() == 0) {
+    Serial.println(F("Error: Missing grid variable name. Use: ROTATE <name>"));
+    return;
+  }
+
+  String varName = input;
+
+  // Procura a variável de grid
+  for (int i = 0; i < gridVarCount; i++) {
+    if (gridVariables[i].name == varName) {
+      // Cria uma matriz temporária para armazenar o grid rotacionado
+      char rotatedGrid[MAX_GRID_SIZE][MAX_GRID_SIZE];
+
+      // Rotaciona o grid
+      for (int j = 0; j < gridVariables[i].height; j++) {
+        for (int k = 0; k < gridVariables[i].width; k++) {
+          rotatedGrid[k][gridVariables[i].height - 1 - j] = gridVariables[i].grid[j][k];
+        }
+      }
+
+      // Atualiza as dimensões do grid
+      int temp = gridVariables[i].width;
+      gridVariables[i].width = gridVariables[i].height;
+      gridVariables[i].height = temp;
+
+      // Copia o grid rotacionado de volta para a matriz original
+      for (int j = 0; j < gridVariables[i].height; j++) {
+        for (int k = 0; k < gridVariables[i].width; k++) {
+          gridVariables[i].grid[j][k] = rotatedGrid[j][k];
+        }
+      }
+
+      Serial.print(F("Grid variable "));
+      Serial.print(varName);
+      Serial.println(F(" rotated 90 degrees."));
+
+      // Exibe o grid rotacionado
+      for (int j = 0; j < gridVariables[i].height; j++) {
+        for (int k = 0; k < gridVariables[i].width; k++) {
+          Serial.print('[');
+          Serial.print(gridVariables[i].grid[j][k]);
+          Serial.print(']');
+        }
+        Serial.println();
+      }
+
+      return;
+    }
+  }
+
+  Serial.println(F("Grid variable not found."));
+}
+
 // Função principal
 void loop() {
   if (Serial.available() > 0) {
     String input = Serial.readStringUntil('\n');
     input.trim();
-      if (input.equalsIgnoreCase("ENTER")) {
+      if (input.startsWith("VARGRID")) {
+      handleVarGrid(input);
+    } else if (input.startsWith("SVARG")) {
+      handleSvarg(input);
+    } else if (input.startsWith("VARVOID")) {
+      handleVarVoid(input);
+    } else if (input.startsWith("VARENTER")) {
+      handleVarEnter(input);
+    } else if (input.equalsIgnoreCase("ENTER")) {
       handleEnter(); // Executa o comando ENTER
     } else if (input.equalsIgnoreCase("ROTATE")) {
-      handleRotate(); // Executa o comando ROTATE
-    } else if (input.startsWith("VOID")) {
+      handleRotate(); // Rotaciona o grid global
+    } else if (input.startsWith("ROTATE ")) {
+      handleRotateVar(input);
+    }  else if (input.startsWith("VOID")) {
       handleVoid(input); // Executa o comando VOID
     } else if (input.startsWith("HELP")) {
       handleHelp();
