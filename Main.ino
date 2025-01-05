@@ -1094,7 +1094,6 @@ void handleHelp() {
   Serial.println(F("ROTATE                        - Rotate 90 degrees the last GRID or VOID."));
   Serial.println(F("SVARG <name>                  - Show the contents of a VAR  GRID, VARGRID or VARVOID."));
   Serial.println(F("AMALG <name> <type>           - Create a Amalgamate of VAR, GRID, VARGRID or VARVOID."));
-  Serial.println(F("SHOWAMALG <name>              - Displays the Amalgamate."));
   Serial.println(F("---------------------------------------------------"));
   Serial.println(F("End of Help, have a good day!"));
 }
@@ -1612,44 +1611,6 @@ void handleRotateVar(String input) {
   Serial.println(F("Variable not found."));
 }
 
-void handleShowAmalg(String input) {
-  input = input.substring(10); // Remove "SHOWAMALG "
-  input.trim();
-
-  if (input.length() == 0) {
-    Serial.println(F("Error: Missing AMALG variable name. Use: SHOWAMALG <name>"));
-    return;
-  }
-
-  String varName = input;
-
-  // Procura a variável AMALG
-  for (int i = 0; i < amalgVarCount; i++) {
-    if (amalgVariables[i]->name == varName) { // Usando -> para acessar membros
-      AmalgVariable* currentVar = amalgVariables[i];
-
-      // Exibe todos os grids na sequência
-      while (currentVar != nullptr) {
-        if (currentVar->type.equalsIgnoreCase("ENTER")) {
-          Serial.println(); // Exibe uma nova linha para o ENTER
-        } else {
-          for (int j = 0; j < currentVar->height; j++) {
-            for (int k = 0; k < currentVar->width; k++) {
-              Serial.print('[');
-              Serial.print(currentVar->grid[j][k]);
-              Serial.print(']');
-            }
-            Serial.println();
-          }
-        }
-        currentVar = currentVar->next;
-      }
-      return;
-    }
-  }
-
-  Serial.println(F("AMALG variable not found."));
-}
 
 // Função principal
 void loop() {
@@ -1658,8 +1619,6 @@ void loop() {
     input.trim();
     if (input.startsWith("AMALG")) {
       handleAmalg(input); // Executa o comando AMALG
-    } else if (input.startsWith("SHOWAMALG")) {
-      handleShowAmalg(input); // Exibe o conteúdo de uma variável AMALG
     } else if (input.startsWith("ROTATE ")) {
       handleRotateVar(input); // Rotaciona uma variável AMALG ou GRID
     } else if (input.equalsIgnoreCase("RETURN")) {
